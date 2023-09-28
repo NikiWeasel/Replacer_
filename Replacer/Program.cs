@@ -12,7 +12,7 @@ using System.Collections;
 using static System.Net.Mime.MediaTypeNames;
 using System.Net;
 using System.Security.Policy;
-
+using Newtonsoft.Json.Serialization;
 
 namespace ConsoleApp2
 {
@@ -25,89 +25,81 @@ namespace ConsoleApp2
 
     internal class Program
     {
-
-        private static bool RemoteFileExists(string url)
+        private static async Task<string> GetJsonString(string url)
         {
-            try
+            HttpClient client = new HttpClient();
+            HttpResponseMessage response = await client.GetAsync(url);
+            if (response.IsSuccessStatusCode)
             {
-                HttpWebRequest request = WebRequest.Create(url) as HttpWebRequest;
-                request.Method = "HEAD";
-                HttpWebResponse response = request.GetResponse() as HttpWebResponse;
-                response.Close();
-                return (response.StatusCode == HttpStatusCode.OK);
+                client.Dispose();
+                return await response.Content.ReadAsStringAsync();
             }
-            catch
+            else
             {
-                //Any exception will returns false.
-                return false;
+                client.Dispose();
+                throw new Exception($"Запрос не выполнен. Код состояния: {response.StatusCode}");
             }
         }
 
+        private static List<Replacement> GetReplacements()//получение замен
+        {
+            if (!File.Exists(@"replacement.json")) throw new Exception("Ошибка чтения файла.");
+
+            string text = File.ReadAllText(@"replacement.json");
+            return JsonConvert.DeserializeObject<List<Replacement>>(text);
+        }
+
+        private static string ReplaceInJson(List<Replacement> repList, string helpString)//перестановка
+        {
+            for (int i = repList.Count - 1; i >= 0; i--)
+            {
+                if (repList[i].source == null)
+                {
+                    repList[i].source = String.Empty;
+                }
+                helpString = helpString.Replace(repList[i].replacement, repList[i].source);
+            }
+            return helpString;
+
+        }
+
+        private static string RemoveEscapedQuotes(string helpString)
+        {
+            List<string> resultList = new List<string>();
+            resultList = JsonConvert.DeserializeObject<List<String>>(helpString);
+            resultList = resultList.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
+            return string.Join("\",\n\"", resultList);
+        }
+
+
+        private static void WriteJsonToFile(string helpString)//запись в файл
+        {
+            File.WriteAllText(@"result.json", "[\n\"" + helpString + "\"\n]");
+            Console.WriteLine("Запись прошла успешно.");
+        }
 
         static async Task Main(string[] args)
         {
             HttpClient client = new HttpClient();
-            string apiUrl = "https://raw.githubusercontent.com/thewhitesoft/student-2023-assignment/main/data.json";
+            const string apiUrl = "https://raw.githubusercontent.com/thewhitesoft/student-2023-assignment/main/data.json";
 
-            if (RemoteFileExists(apiUrl))
+            try
             {
-                HttpResponseMessage response = await client.GetAsync(apiUrl);
-                if (response.IsSuccessStatusCode)
-                {
-                    string jsonString = await response.Content.ReadAsStringAsync();
+                Task<string> Task = GetJsonString(apiUrl);
+                string jsonString = await Task;
 
-                    if (File.Exists(@"replacement.json"))
-                    {
+                WriteJsonToFile(RemoveEscapedQuotes(ReplaceInJson(GetReplacements(), jsonString)));
 
-                        string text = File.ReadAllText(@"replacement.json");//
 
-                        List<Replacement> repList = null;
-                        repList = JsonConvert.DeserializeObject<List<Replacement>>(text);
-
-                        string helpString = jsonString;
-
-                        for (int i = repList.Count - 1; i >= 0; i--)
-                        {
-                            if (repList[i].source == null)
-                            {
-                                repList[i].source = String.Empty;
-                            }
-
-                            Regex reg = new Regex(@repList[i].replacement);
-                            helpString = reg.Replace(helpString, repList[i].source);
-                        }
-
-                        Regex reg2 = new Regex(@"\""\""");
-
-                        if (reg2.IsMatch(helpString))
-                        {
-                            Regex reg1 = new Regex(@"\""\""\,");
-                            helpString = reg1.Replace(helpString, String.Empty);
-                            helpString = reg2.Replace(helpString, String.Empty);
-                        }
-
-                        File.WriteAllText(@"result.json", helpString);
-
-                        Console.WriteLine("Запись прошла успешно.");
-                    }
-                    else
-                    {
-                        Console.WriteLine("Файл не найден.");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"Запрос не выполнен с кодом состояния: {response.StatusCode}");
-                }
+                Console.ReadKey();
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine("APIurl не работает.");
+                Console.WriteLine(ex.Message);
+                Console.ReadKey();
+
             }
 
-
-            client.Dispose();
-            Console.ReadKey();
         }
     }
 }
