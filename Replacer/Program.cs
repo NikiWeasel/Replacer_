@@ -27,17 +27,17 @@ namespace ConsoleApp2
     {
         private static async Task<string> GetJsonString(string url)
         {
-            HttpClient client = new HttpClient();
-            HttpResponseMessage response = await client.GetAsync(url);
-            if (response.IsSuccessStatusCode)
+            using (var client = new HttpClient())
             {
-                client.Dispose();
-                return await response.Content.ReadAsStringAsync();
-            }
-            else
-            {
-                client.Dispose();
-                throw new Exception($"Запрос не выполнен. Код состояния: {response.StatusCode}");
+                HttpResponseMessage response = await client.GetAsync(url);
+                if (response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadAsStringAsync();
+                }
+                else
+                {
+                    throw new Exception($"Запрос не выполнен. Код состояния: {response.StatusCode}");
+                }
             }
         }
 
