@@ -13,19 +13,34 @@ using static System.Net.Mime.MediaTypeNames;
 using System.Net;
 using System.Security.Policy;
 using Newtonsoft.Json.Serialization;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace ConsoleApp2
+
+namespace Replacer
 {
     public class Replacement
     {
         public string replacement { get; set; }
         public string source { get; set; }
+
+        public override bool Equals(object obj)
+        {
+            if (obj == null || GetType() != obj.GetType())
+                return false;
+
+            Replacement other = (Replacement)obj;
+            return replacement == other.replacement && source == other.source;
+        }
+
+        public override int GetHashCode()
+        {
+            return replacement.GetHashCode() ^ source.GetHashCode();
+        }
     }
 
-
-    internal class Program
+    public static class Program
     {
-        private static async Task<string> GetJsonString(string url)
+        public static async Task<string> GetJsonString(string url)
         {
             using (var client = new HttpClient())
             {
@@ -41,15 +56,15 @@ namespace ConsoleApp2
             }
         }
 
-        private static List<Replacement> GetReplacements()//получение замен
+        public static List<Replacement> GetReplacements(string directory)//получение замен
         {
-            if (!File.Exists(@"replacement.json")) throw new Exception("Ошибка чтения файла.");
+            if (!File.Exists(directory)) throw new Exception("Ошибка чтения файла.");
 
-            string text = File.ReadAllText(@"replacement.json");
+            string text = File.ReadAllText(directory);
             return JsonConvert.DeserializeObject<List<Replacement>>(text);
         }
 
-        private static string ReplaceInJson(List<Replacement> repList, string helpString)//перестановка
+        public static string ReplaceInJson(List<Replacement> repList, string helpString)//перестановка
         {
             for (int i = repList.Count - 1; i >= 0; i--)
             {
@@ -63,16 +78,17 @@ namespace ConsoleApp2
 
         }
 
-        private static string RemoveEscapedQuotes(string helpString)
+        public static string RemoveEscapedQuotes(string helpString)
         {
             List<string> resultList = new List<string>();
             resultList = JsonConvert.DeserializeObject<List<String>>(helpString);
             resultList = resultList.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
+            string ff = string.Join("\",\n\"", resultList);
             return string.Join("\",\n\"", resultList);
         }
 
 
-        private static void WriteJsonToFile(string helpString)//запись в файл
+        public static void WriteJsonToFile(string helpString)//запись в файл
         {
             File.WriteAllText(@"result.json", "[\n\"" + helpString + "\"\n]");
             Console.WriteLine("Запись прошла успешно.");
@@ -88,7 +104,7 @@ namespace ConsoleApp2
                 Task<string> Task = GetJsonString(apiUrl);
                 string jsonString = await Task;
 
-                WriteJsonToFile(RemoveEscapedQuotes(ReplaceInJson(GetReplacements(), jsonString)));
+                WriteJsonToFile(RemoveEscapedQuotes(ReplaceInJson(GetReplacements("replacement.json"), jsonString)));
 
 
                 Console.ReadKey();
