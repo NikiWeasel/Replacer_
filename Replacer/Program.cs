@@ -38,7 +38,7 @@ namespace Replacer
         }
     }
 
-    public static class Program
+    public class Program
     {
         public static async Task<string> GetJsonString(string url)
         {
